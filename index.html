@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crushly - IA Dating Assistant</title>
+    <style>
+        /* MVP Ember Night - Mobile First */
+        body { 
+            background-color: #1a0d0d; 
+            color: #f5d5b8; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            padding: 20px; 
+            max-width: 480px; 
+            margin: 0 auto; 
+        }
+        h1 { color: #c0455a; text-align: center; font-size: 28px; margin-bottom: 5px; }
+        p.sub { text-align: center; font-size: 14px; color: #a08070; margin-bottom: 25px; }
+        textarea, select { 
+            width: 100%; 
+            padding: 15px; 
+            margin-bottom: 15px; 
+            background: #2a1515; 
+            border: 1px solid #3a2020; 
+            color: white; 
+            border-radius: 10px; 
+            box-sizing: border-box; 
+            font-size: 16px;
+        }
+        textarea:focus, select:focus { outline: none; border-color: #c0455a; }
+        button { 
+            width: 100%; 
+            padding: 16px; 
+            background: #c0455a; 
+            color: white; 
+            border: none; 
+            border-radius: 10px; 
+            font-weight: bold; 
+            font-size: 16px; 
+            cursor: pointer; 
+            transition: 0.2s;
+        }
+        button:hover { background: #a03545; }
+        button:disabled { background: #555; cursor: not-allowed; }
+        .response-card { 
+            background: #2a1515; 
+            padding: 15px; 
+            border-radius: 10px; 
+            margin-bottom: 12px; 
+            border-left: 4px solid #e8845a; 
+            animation: fadeIn 0.5s ease;
+        }
+        .response-title { font-size: 12px; color: #e8845a; text-transform: uppercase; font-weight: bold; margin-bottom: 5px; }
+        .hidden { display: none; }
+        #email-section { margin-top: 20px; text-align: center; background: #2a1515; padding: 25px; border-radius: 10px; border: 1px solid #c0455a; }
+        input[type="email"] { width: 100%; padding: 12px; margin: 15px 0; box-sizing: border-box; border-radius: 8px; border: 1px solid #3a2020; background: #1a0d0d; color: white; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <h1>🔥 CRUSHLY</h1>
+    <p class="sub">Pega el mensaje y obtén la respuesta perfecta.</p>
+
+    <textarea id="msg" rows="4" placeholder="Ej: Hola, ¿qué buscas por aquí?"></textarea>
+    
+    <select id="style">
+        <option value="Flirty">Flirty 👄</option>
+        <option value="Funny">Funny 😂</option>
+        <option value="Mysterious">Mysterious 🌙</option>
+        <option value="Direct">Direct 🎯</option>
+    </select>
+
+    <button id="btn" onclick="generar()">✨ Generar Respuestas</button>
+
+    <div id="loading" class="hidden" style="text-align:center; margin-top:20px; color: #e8845a;">Pensando la mejor respuesta...</div>
+
+    <div id="responses" style="margin-top: 20px;"></div>
+
+    <!-- VALIDACIÓN: Aparece después de 3 usos -->
+    <div id="email-section" class="hidden">
+        <h2>¡Te quedaste sin créditos gratis! 😢</h2>
+        <p style="font-size: 14px;">Estamos mejorando la app. Deja tu correo y te daremos acceso anticipado gratis cuando lancemos la versión completa.</p>
+        <input type="email" id="email" placeholder="tu@email.com">
+        <button onclick="guardarCorreo()" style="background:#e8845a">Quiero acceso anticipado</button>
+    </div>
+
+    <script>
+        // CONEXIÓN DIRECTA A TU BACKEND SEGURO
+        const API_URL = "https://crushly-backend-2ai3.onrender.com/api/generate";
+        let usos = 0;
+        const MAX_USOS = 3; // Límite para validar
+
+        async function generar() {
+            // Verificar si ya usó sus créditos
+            if (usos >= MAX_USOS) {
+                document.getElementById('email-section').classList.remove('hidden');
+                return;
+            }
+
+            const msg = document.getElementById('msg').value;
+            const style = document.getElementById('style').value;
+            
+            if (!msg.trim()) return alert("Pega un mensaje primero");
+
+            // UI de carga
+            document.getElementById('btn').disabled = true;
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('responses').innerHTML = '';
+
+            try {
+                // Llamada al backend de Render
+                const res = await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ 
+                        message: msg, 
+                        style: style, 
+                        naturalness: 8, 
+                        language: "Español" 
+                    })
+                });
+                
+                const data = await res.json();
+                
+                if(data.success) {
+                    // Separar las 3 opciones
+                    const opciones = data.response.split("---OPCION---").map(t => t.trim()).filter(t => t.length > 0);
+                    const tipos = ["Segura ✅", "Atrevida 🔥", "Creativa 🧠"];
+                    
+                    let html = '';
+                    opciones.forEach((op, i) => {
+                        html += `<div class="response-card">
+                            <div class="response-title">${tipos[i] || 'Opción'}</div>
+                            <div>${op}</div>
+                        </div>`;
+                    });
+                    
+                    document.getElementById('responses').innerHTML = html;
+                    usos++;
+                    
+                    // Si llega al límite, mostrar formulario de email
+                    if (usos >= MAX_USOS) {
+                        setTimeout(() => {
+                            document.getElementById('email-section').classList.remove('hidden');
+                            document.getElementById('btn').style.display = 'none';
+                        }, 1000);
+                    }
+                } else {
+                    alert("Error en el servidor: " + data.error);
+                }
+            } catch (e) {
+                alert("Error de conexión. Si es la primera vez que lo usas, espera 30 segundos (el servidor se está despertando) y prueba de nuevo.");
+            } finally {
+                document.getElementById('btn').disabled = false;
+                document.getElementById('loading').classList.add('hidden');
+            }
+        }
+
+        function guardarCorreo() {
+            const email = document.getElementById('email').value;
+            if(!email.includes("@")) return alert("Por favor, pon un correo válido");
+            
+            // Aquí conectarías Formspree/Make en el futuro. Por ahora, simulamos éxito.
+            document.getElementById('email-section').innerHTML = "<p style='color:#e8845a; font-weight:bold;'>¡Gracias! Te avisaremos pronto. 🔥</p>";
+        }
+    </script>
+</body>
+</html>
