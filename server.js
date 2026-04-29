@@ -15,7 +15,7 @@ const anthropic = new Anthropic({
 
 app.post('/api/generate', async (req, res) => {
     try {
-        const { message, style, naturalness, language } = req.body;
+        const { message, style, naturalness, language, coachMode } = req.body;
 
         if (!message) {
             return res.status(400).json({ error: 'El mensaje es obligatorio' });
@@ -27,7 +27,7 @@ Tu objetivo es ayudar al usuario a responder mensajes de forma atractiva, inteli
 
 Reglas estrictas:
 1. Estilo solicitado: ${style || 'Flirty'}. Adapta el tono a este estilo.
-   - Si el estilo es "Social": Tu objetivo es ROMPER EL HIELO, caer bien, integrar al usuario en dinámicas grupales y ser amigable. Cero intenciones románticas o coqueteo. Humor ligero, preguntas abiertas sobre el contexto (ej: planes, hobbies, el evento al que asisten).
+   - Si el estilo es "Social": Tu objetivo es ROMPER EL HIELO, caer bien, integrar al usuario en dinámicas grupales y ser amigable. Cero intenciones románticas o coqueteo. Humor ligero, preguntas abiertas sobre el contexto.
    - Si el estilo es "Flirty", "Funny", "Mysterious" o "Direct": Tu objetivo es el coqueteo y la atracción romántica/sexual.
 2. Nivel de naturalidad: ${naturalness || 7}/10. 
    - 1 = Texto robótico y formal. 
@@ -35,10 +35,14 @@ Reglas estrictas:
 3. Idioma de respuesta: ${language || 'Español'}.
 4. NUNCA rompas el personaje. NUNCA digas "Como IA sugiero...". Eres un humano real contestando.
 5. Genera 3 opciones de respuesta separadas por "---OPCION---". La primera más segura, la segunda más atrevida/creativa, la tercera inusual/divertida.
-`;
+${coachMode ? `
+6. MODO COACH ACTIVADO: Después de cada opción, agrega "---COACH---" seguido de 1-2 líneas explicando brevemente la psicología detrás de esa respuesta. Ejemplo:
+---COACH---
+Usa escasez social para aumentar el interés. Al no estar 100% disponible, generás atracción.
+` : ''}`;
 
         const response = await anthropic.messages.create({
-            model: "claude-3-5-haiku-20241022",
+            model: "claude-haiku-4-5-20251001",
             max_tokens: 1024,
             system: systemPrompt,
             messages: [
@@ -48,9 +52,24 @@ Reglas estrictas:
 
         const aiResponse = response.content[0].text;
 
+        // Parsear respuesta según modo
+        const opciones = aiResponse.split('---OPCION---').map(o => o.trim()).filter(Boolean);
+
+        if (coachMode) {
+            const opcionesConCoach = opciones.map(opcion => {
+                const partes = opcion.split('---COACH---');
+                return {
+                    respuesta: partes[0]?.trim() || '',
+                    coach: partes[1]?.trim() || ''
+                };
+            });
+            return res.json({ success: true, opciones: opcionesConCoach, coachMode: true });
+        }
+
         res.json({ 
             success: true, 
-            response: aiResponse 
+            opciones: opciones.map(r => ({ respuesta: r })),
+            coachMode: false
         });
 
     } catch (error) {
