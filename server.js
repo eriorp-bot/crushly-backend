@@ -22,24 +22,34 @@ app.post('/api/generate', async (req, res) => {
         }
 
         const systemPrompt = `
-Eres Crushly, el mejor asistente de IA del mundo para interacciones sociales y citas. 
-Tu objetivo es ayudar al usuario a responder mensajes de forma atractiva, inteligente y natural.
+Eres Crushly, asistente de citas con IA.
+Estilo: ${style || 'Flirty'}. Naturalidad: ${naturalness || 7}/10. Idioma: ${language || 'Español'}.
 
-Reglas estrictas:
-1. Estilo solicitado: ${style || 'Flirty'}. Adapta el tono a este estilo.
-   - Si el estilo es "Social": Tu objetivo es ROMPER EL HIELO, caer bien, integrar al usuario en dinámicas grupales y ser amigable. Cero intenciones románticas o coqueteo. Humor ligero, preguntas abiertas sobre el contexto.
-   - Si el estilo es "Flirty", "Funny", "Mysterious" o "Direct": Tu objetivo es el coqueteo y la atracción romántica/sexual.
-2. Nivel de naturalidad: ${naturalness || 7}/10. 
-   - 1 = Texto robótico y formal. 
-   - 10 = Ultra informal, con jerga, emojis y falta de ortografía típica de un WhatsApp.
-3. Idioma de respuesta: ${language || 'Español'}.
-4. NUNCA rompas el personaje. NUNCA digas "Como IA sugiero...". Eres un humano real contestando.
-5. Genera EXACTAMENTE 3 opciones separadas por "---OPCION---". PROHIBIDO usar #, **, ##, numeración o cualquier prefijo antes de cada opción. Empezá cada opción DIRECTAMENTE con el mensaje, sin introducción previa.
-${coachMode ? `
-6. MODO COACH ACTIVADO: Después de cada opción, agrega "---COACH---" seguido de 1-2 líneas explicando brevemente la psicología detrás de esa respuesta. Ejemplo:
----COACH---
-Usa escasez social para aumentar el interés. Al no estar 100% disponible, generás atracción.
-` : ''}`;
+Reglas de estilo:
+- "Social": amigable, sin coqueteo, humor ligero.
+- "Flirty/Funny/Mysterious/Direct": coqueteo y atracción.
+Naturalidad 1=formal, 10=WhatsApp con jerga y emojis.
+
+INSTRUCCIÓN CRÍTICA: Responde ÚNICAMENTE con un objeto JSON válido, sin texto antes ni después, sin markdown, sin backticks. El formato exacto es:
+{
+  "opciones": [
+    {
+      "respuesta": "texto del mensaje aquí",
+      "coach": "${coachMode ? 'explicación psicológica breve' : ''}"
+    },
+    {
+      "respuesta": "texto del mensaje aquí",
+      "coach": "${coachMode ? 'explicación psicológica breve' : ''}"
+    },
+    {
+      "respuesta": "texto del mensaje aquí",
+      "coach": "${coachMode ? 'explicación psicológica breve' : ''}"
+    }
+  ]
+}
+
+La primera opción es segura, la segunda atrevida, la tercera creativa/divertida.
+NUNCA rompas el personaje. NUNCA digas "Como IA...".`;
 
         const response = await anthropic.messages.create({
             model: "claude-haiku-4-5-20251001",
@@ -50,40 +60,29 @@ Usa escasez social para aumentar el interés. Al no estar 100% disponible, gener
             ],
         });
 
-        const aiResponse = response.content[0].text;
-
-        // Parsear respuesta según modo
-     .map(o => o
-.replace(/^#[^\n]*\n?/gi, '')
-.replace(/^-+OPCI[OÓ]N\s*\d+-+\s*/gi, '')
-.replace(/\*\*OPCI[OÓ]N\s*\d+\*\*\s*(\([^)]*\))?\s*/gi, '')
-.replace(/\*\*OPCION\s*\d+:\*\*/gi, '')
-.replace(/^OPCI[OÓ]N\s*\d+[:\s]*/gi, '')
-.trim()
-         ).filter(Boolean);
-
-        if (coachMode) {
-            const opcionesConCoach = opciones.map(opcion => {
-                const partes = opcion.split('---COACH---');
-                return {
-                    respuesta: partes[0]?.trim() || '',
-                    coach: partes[1]?.trim() || ''
-                };
-            });
-            return res.json({ success: true, opciones: opcionesConCoach, coachMode: true });
+        const rawText = response.content[0].text.trim();
+        
+        let parsed;
+        try {
+            parsed = JSON.parse(rawText);
+        } catch (e) {
+            // Si el modelo metió backticks igual, los limpiamos
+            const cleaned = rawText.replace(/```json|```/g, '').trim();
+            parsed = JSON.parse(cleaned);
         }
 
-        res.json({ 
-            success: true, 
-            opciones: opciones.map(r => ({ respuesta: r })),
-            coachMode: false
-        });
+        const opciones = parsed.opciones.map(op => ({
+            respuesta: op.respuesta || '',
+            coach: op.coach || ''
+        }));
+
+        res.json({ success: true, opciones, coachMode: !!coachMode });
 
     } catch (error) {
         console.error('Error al llamar a la API:', error);
         res.status(500).json({ 
             success: false, 
-            error: 'Error interno del servidor al generar la respuesta.' 
+            error: 'Error interno del servidor.' 
         });
     }
 });
