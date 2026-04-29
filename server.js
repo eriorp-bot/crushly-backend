@@ -53,7 +53,13 @@ Usa escasez social para aumentar el interés. Al no estar 100% disponible, gener
         const aiResponse = response.content[0].text;
 
         // Parsear respuesta según modo
-        .map(o => o.replace(/\*\*OPCION \d+:\*\*/gi, '').replace(/^#\s*Opci[oó]n\s*\d+\s*/gi, '').trim()).filter(Boolean);
+     .map(o => o
+    .replace(/^#[^\n]*\n?/gi, '')
+    .replace(/\*\*OPCI[OÓ]N\s*\d+\*\*\s*(\([^)]*\))?\s*/gi, '')
+    .replace(/\*\*OPCION\s*\d+:\*\*/gi, '')
+    .replace(/^OPCI[OÓ]N\s*\d+[:\s]*/gi, '')
+    .trim()
+).filter(Boolean);
 
         if (coachMode) {
             const opcionesConCoach = opciones.map(opcion => {
